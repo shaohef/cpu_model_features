@@ -30,7 +30,8 @@ def main():
 
     base_featurs, models = get_featurs_and_models(CPU_MAP)
     for model, ft in models.items():
-        f = " ".join(base_featurs + ft)
+        f = set(base_featurs + ft).union()
+        f = " ".join(f)
         avaliabe = get_model_features(QEMU_BINARY, model, f)
         unavaliabe = list(set(ft) - set(avaliabe))
         if unavaliabe:
