@@ -6,6 +6,26 @@ from intersection_features import get_model_features
 CPU_MAP = "/usr/share/libvirt/cpu_map.xml"
 
 
+def get_all_featurs_of_models(x86):
+    def recursion_farther(models, model, features=[]):
+        sub_models = model.findall("model")
+        features = features + [feature.attrib["name"] for
+                               feature in model.findall("feature")]
+        if sub_models:
+            model_name = sub_models[0].attrib["name"]
+            sub = models[model_name]
+            features = features + recursion_farther(models, sub, features)
+        features = list(set(features).union())
+        return features
+
+    model_feature_map = {}
+    models = dict(
+        [(model.attrib["name"], model) for model in x86.findall("model")])
+    for model in models.keys():
+        model_feature_map[model] = recursion_farther(models, models[model])
+    return model_feature_map
+
+
 def get_featurs_and_models(path):
     bases = []
     models = {}
@@ -17,10 +37,9 @@ def get_featurs_and_models(path):
            if node.attrib["name"] == "x86" ][0]
 
     bases = [feature.attrib["name"] for feature in x86.findall("feature")]
-    models = dict([(model.attrib["name"],
-                    [feature.attrib["name"]
-                     for feature in model.findall("feature")])
-                   for model in x86.findall("model")])
+    models = get_all_featurs_of_models(x86)
+    for model, v in models.items():
+        print model, v
 
     return bases, models
 
