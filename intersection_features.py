@@ -4,6 +4,7 @@
 This is a script to find the intersection features of CPU model for qemu-kvm
 """
 
+import argparse
 import commands
 import re
 import sys
@@ -29,7 +30,8 @@ def varify_binary(binary):
 
 
 def get_models_and_features(binary):
-    status, output = commands.getstatusoutput('%s -cpu help' % binary)
+    status, output = commands.getstatusoutput(
+       '%s -enable-kvm -cpu help' % binary)
 
     models = None
     if status == 0:
@@ -53,7 +55,7 @@ def get_model_features(binary, model, features, pattern=PATTERN):
     dup, aliases = dup_and_alias_features(features)
     feature_args = ",+".join(dup.split())
     status, output = commands.getstatusoutput(
-        'DISPLAY=fake.host.display:n.0 %s -cpu %s,+%s,check' %
+        'DISPLAY=fake.host.display:n.0 %s -enable-kvm -cpu %s,+%s,check' %
         (binary, model, feature_args))
     filters = pattern.findall(output)
     filters = [ f[0] or f[1] for f in filters]
@@ -69,22 +71,33 @@ def get_model_features(binary, model, features, pattern=PATTERN):
     return support_f
 
 
-def main():
-    QEMU_BINARY = "qemu-system-x86_64  -enable-kvm"
+def main(args):
     if len(sys.argv) > 1:
         if "--help" in sys.argv or "-h" in sys.argv:
             usage()
-        else:
-            QEMU_BINARY = sys.argv[1]
-    
-    binary = QEMU_BINARY.split()[0]
+
+    binary = args.b
     if varify_binary(binary) != 0:
         exit()
 
     models, features = get_models_and_features(QEMU_BINARY)
 
     model_feature = {}
-    for model in models:
+    probe_models = models
+    if args.m:
+        probe_models = args.m.split(",")
+        probe_models_map = dict([(m.lower(), m) for m in probe_models])
+        all_models_map  = dict([(m.lower(), m) for m in models])
+
+        unsupport_m = set(probe_models_map.keys()) - set(all_models_map.keys())
+        if unsupport_m:
+            m = [probe_models_map[k] for k in unsupport_m]
+            print 'qemu does not support these models: "%s"' % ",".join(m)
+            print 'please choose these models: "%s"' % ",".join(models)
+            exit(1)
+        probe_models = [all_models_map[m] for m in probe_models_map.keys()]
+
+    for model in probe_models:
         support_f = get_model_features(QEMU_BINARY, model, features)
         model_feature[model] = support_f
 
@@ -92,8 +105,29 @@ def main():
         print "=" * 80
         print "model: %s" % k
         print "    support %s featurs: %s" % (len(v), v)
+        if args.f:
+            features = ",".join(v)
+            features = features.replace("|", ",")
+            unsupport_f = set(args.f.split(",")) - set(features.split(","))
+            if unsupport_f:
+                print "    **** do not support %s featurs: %s" % (
+                     len(unsupport_f ), list(unsupport_f))
         print ""
 
 
 if __name__ == "__main__":
-    main()
+    QEMU_BINARY = "qemu-system-x86_64"
+    parser = argparse.ArgumentParser(
+        description="find the intersection features of CPU model")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-v", "--verbose", action="store_true")
+    group.add_argument("-q", "--quiet", action="store_true")
+    parser.add_argument("-m", "--model", type=str, default="", dest="m",
+                        help='The models name of cpu, -m "Haswell, ivybridge"')
+    parser.add_argument("-f", "--feature", type=str, default="", dest="f",
+                        help='The features to be probed, -f "avx,sse"')
+    parser.add_argument("-b", "--binary", type=str,
+                        default=QEMU_BINARY, dest="b",
+                        help='The models name of cpu, -m "Haswell, ivybridge"')
+    args = parser.parse_args()
+    main(args)
