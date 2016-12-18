@@ -48,7 +48,7 @@ def get_featurs_and_models(path):
 
 
 def main(args):
-    base_featurs, models = get_featurs_and_models(CPU_MAP)
+    base_featurs, models = get_featurs_and_models(args.c)
 
     probe_models = models.keys()
     if args.m:
@@ -111,6 +111,10 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--binary", type=str,
                         default=QEMU_BINARY, dest="b",
                         help='The models name of cpu, -m "Haswell, ivybridge"')
+    parser.add_argument("-c", "--cpu-map", type=str,
+                        default=CPU_MAP, dest="c",
+                        help='The path of libvirt cpu_map file, '
+                        '-c "%s"' % CPU_MAP)
     args = parser.parse_args()
 
     main(args)
